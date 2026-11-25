@@ -56,7 +56,7 @@ class TestPathRules(unittest.TestCase):
         """The only ordering that exercises the tie-break clause: with Allow
         first, deleting the clause makes the first rule at a given length win
         and Allow would leak through. The Disallow-first sibling above cannot
-        detect that mutation (review finding F21, 2026-08-19)."""
+        detect that mutation."""
         self.assertFalse(allowed("User-agent: *\nAllow: /a\nDisallow: /a\n", "*", "/a"))
 
     def test_api_block_and_sibling_path(self):
@@ -138,11 +138,9 @@ class TestSoftTwoHundred(unittest.TestCase):
         self.assertIn("not a robots.txt", msg)
 
     def test_gate_reads_policy_as_browser_when_honest_request_is_refused(self):
-        """09-web-research.md's Barclays-class recovery: the policy file itself
-        returns 403 to Claude-User and 200 to a browser, and the checker must
-        then read it as a browser and obey it strictly. This is gate()'s UA
-        fallback loop, previously untested despite the doc's coverage claim
-        (review finding F30, 2026-08-19)."""
+        """The policy file itself returns 403 to Claude-User and 200 to a
+        browser, and the checker must then read it as a browser and obey it
+        strictly. This is gate()'s user-agent fallback loop."""
         import robots_check
 
         original = robots_check._fetch
@@ -236,7 +234,7 @@ class TestArgumentHardening(unittest.TestCase):
             text=True,
             timeout=60,
         )
-        self.assertEqual(out.returncode, 1)
+        self.assertEqual(out.returncode, 2)
         self.assertNotIn("Usage: curl", out.stdout)
 
     def test_gate_never_passes_the_caller_url_through_to_curl(self):
@@ -257,6 +255,23 @@ class TestArgumentHardening(unittest.TestCase):
         finally:
             robots_check._fetch = original
         self.assertEqual(seen[0], "https://x.example/robots.txt")
+
+    def test_no_network_answer_is_could_not_check_not_disallowed(self):
+        """A sandbox that blocks the script must not read as "the site said no"."""
+        import robots_check
+
+        original = robots_check._fetch
+
+        def blocked(url, ua):
+            raise RuntimeError("curl exit 7")
+
+        robots_check._fetch = blocked
+        try:
+            rc, msg = robots_check.gate("https://x.example/jobs")
+        finally:
+            robots_check._fetch = original
+        self.assertEqual(rc, 3)
+        self.assertIn("COULD NOT CHECK", msg)
 
 
 

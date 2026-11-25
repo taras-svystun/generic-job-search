@@ -1,0 +1,77 @@
+% Academic CV. Placeholders only. Standard TeX Live packages.
+% Compile with: pdflatex template.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2cm]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}[\titlerule]
+\titlespacing*{\section}{0pt}{1.2ex}{0.8ex}
+\setlist{nosep,leftmargin=1.2em}
+\newcommand{\entry}[3]{\textbf{#1} \hfill #3\\ \textit{#2}\par\smallskip}
+
+\begin{document}
+
+{\LARGE\bfseries Your Name}\\[2pt]
+Position or title, Department, University A \\
+City, Country \quad $\cdot$ \quad \href{mailto:you@example.com}{you@example.com} \quad $\cdot$ \quad \href{https://example.com}{example.com}
+
+\section{Education}
+\entry{PhD in Field}{University A, advisor: Prof. Name}{2019 -- 2023}
+Thesis: \textit{Title of the thesis.}
+
+\entry{MSc in Field}{University B}{2017 -- 2019}
+\entry{BSc in Field}{University C}{2014 -- 2017}
+
+\section{Research Interests}
+Topic A, topic B, topic C.
+
+\section{Publications}
+\begin{enumerate}[label={[\arabic*]}]
+  \item \textbf{Your Name}, Co-author A. \textit{Paper title.} Journal or Conference, 2023. DOI: \href{https://doi.org/10.0000/example}{10.0000/example}
+  \item Co-author A, \textbf{Your Name}. \textit{Paper title.} Journal or Conference, 2022.
+\end{enumerate}
+
+\section{Preprints and Work in Progress}
+\begin{itemize}
+  \item \textbf{Your Name}. \textit{Working title.} In preparation.
+\end{itemize}
+
+\section{Talks and Posters}
+\begin{itemize}
+  \item \textit{Talk title.} Conference or Seminar A, City, 2023. (Invited / Contributed)
+  \item \textit{Poster title.} Workshop B, 2022.
+\end{itemize}
+
+\section{Grants, Fellowships and Awards}
+\begin{itemize}
+  \item Name of grant or award, Funder A, 2022. Amount if you want to show it.
+  \item Name of fellowship, Institution B, 2019 -- 2023.
+\end{itemize}
+
+\section{Teaching}
+\begin{itemize}
+  \item Teaching assistant, Course A, University A, 2020 -- 2022.
+  \item Guest lecture, Course B, University B, 2023.
+  \item Supervised N bachelor or master theses.
+\end{itemize}
+
+\section{Professional Experience}
+\entry{Role Name}{Company or Lab A}{2023 -- Present}
+
+\section{Service and Skills}
+\begin{itemize}
+  \item Reviewer for Journal A and Conference B.
+  \item Skills: Tool A, Tool B, Method C.
+  \item Languages: Language A (native), Language B (fluent).
+\end{itemize}
+
+\section{References}
+Available on request. (Or list name, title, institution, email for two or three referees.)
+
+\end{document}

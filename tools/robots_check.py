@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Decide whether the browser-header curl retry in 09-web-research.md may run.
+"""Check a site's robots.txt before a fetch beyond a search (09-web-research.md).
 
-The retry exists to get past bot-filtering firewalls on sites whose robots.txt
-permits access. It is never used to override a site that has said no.
-
-WebFetch identifies itself as Claude-User and honors robots.txt, so a 403 has
-two very different causes: a WAF default on a site whose published policy
-allows access, or a site that has actually declined. This tells them apart.
+A 403 has two very different causes: a firewall default on a site whose
+published policy allows access, or a site that has actually declined. This
+tells them apart, so a site that said no is never fetched.
 
 Rules implemented (RFC 9309), deliberately on the cautious side:
   * longest-match wins; on equal specificity Disallow wins
@@ -14,11 +11,15 @@ Rules implemented (RFC 9309), deliberately on the cautious side:
   * blank lines inside a record do not end it (Python's robotparser drops
     rules in that case, which fails open - see tests)
   * 404 means no published policy, which is permission
-  * any other failure to read robots.txt leaves permission unconfirmed,
-    and the retry does not happen
+  * a robots.txt the site answers but that cannot be read (soft 200, 403,
+    5xx) leaves permission unconfirmed, which counts as a no
 
 Usage:  python3 tools/robots_check.py <url>
-Exit 0 = the retry may proceed. Exit 1 = do not retry; go to escalation step 3.
+Exit 0 = allowed: fetch.
+Exit 1 = disallowed or unconfirmed by the site: do not fetch this page.
+Exit 2 = bad usage or not an http(s) URL.
+Exit 3 = could not check: no network answer at all (often a sandbox that
+         blocks this script). See 09-web-research.md for what to do.
 """
 
 import re, subprocess, sys
@@ -28,8 +29,8 @@ BROWSER = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
            '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36')
 
 def _fetch(url, ua):
-    """curl, not urllib: some hosts (jobup.ch) hang urllib indefinitely while
-    answering curl in under a second, and --max-time is a hard ceiling."""
+    """curl, not urllib: some hosts hang urllib indefinitely while answering
+    curl in under a second, and --max-time is a hard ceiling."""
     # "--" terminates option parsing, so a URL beginning with a dash can never
     # be read by curl as a flag. gate() rebuilds the target as
     # scheme://host/robots.txt before calling here, so this is hardening for
@@ -108,16 +109,19 @@ def allowed(text, agent, path):
 
 def gate(url):
     parts = urlsplit(url)
+    if parts.scheme not in ('http', 'https') or not parts.netloc:
+        return 2, 'BAD URL - give a full http(s) URL'
     path = unquote(parts.path) or '/'
     if parts.query:
         path += '?' + parts.query
     robots = f'{parts.scheme}://{parts.netloc}/robots.txt'
-    body, last = None, 'no attempt'
+    body, last, answered = None, 'no attempt', False
     for ua in ('Claude-User', BROWSER):
         try:
             text, code = _fetch(robots, ua)
         except Exception as e:
             last = type(e).__name__; continue
+        answered = True
         if code == 404:
             return 0, 'ALLOWED - no robots.txt published'
         if code == 200:
@@ -126,11 +130,14 @@ def gate(url):
                 continue
             body = text; break
         last = 'HTTP %d' % code
+    if body is None and not answered:
+        return 3, ('COULD NOT CHECK (%s) - no network answer; see 09-web-research.md, '
+                   'robots.txt section' % last)
     if body is None:
-        return 1, 'UNCONFIRMED (%s) - do not retry, go to step 3' % last
+        return 1, 'UNCONFIRMED (%s) - do not fetch this page' % last
     for a in ('Claude-User', '*'):
         if not allowed(body, a, path):
-            return 1, f'DISALLOWED for {a} - do not retry, go to step 3'
+            return 1, f'DISALLOWED for {a} - do not fetch this page'
     return 0, 'ALLOWED - robots.txt permits this path'
 
 if __name__ == '__main__':

@@ -1,7 +1,6 @@
 """Guards for the LaTeX authoring guidance and the example documents.
 
-Three silent-failure modes live here, all found by the 2026-08-19 review
-(F9, F31, F34). Each one produces a clean compile and a green CI run
+Three silent-failure modes live here. Each one produces a clean compile and a green CI run
 while the rendered document or its ATS extraction is wrong, so the spec
 files and the example sources are the only place a test can catch them:
 
@@ -19,12 +18,15 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SKILL_DIR = REPO / ".claude" / "skills" / "job-application-assistant"
+SKILL_DIR = REPO / ".agents" / "skills" / "job-application-assistant"
 CV_TEMPLATES = SKILL_DIR / "05-cv-templates.md"
 COVER_TEMPLATES = SKILL_DIR / "06-cover-letter-templates.md"
-APPLY = REPO / ".claude" / "commands" / "apply.md"
-EXAMPLE_CV = REPO / "cv" / "main_example.tex"
-EXAMPLE_COVER = REPO / "cover_letters" / "cover_example.tex"
+APPLY = REPO / ".agents" / "skills" / "apply" / "SKILL.md"
+EXAMPLE_CVS = [
+    REPO / "templates" / "cv" / "classic" / "template.tex",
+    REPO / "templates" / "cv" / "academic" / "template.tex",
+]
+EXAMPLE_COVER = REPO / "templates" / "cover-letter" / "template.tex"
 
 # \item whose body starts with [ - with or without whitespace between.
 # LaTeX skips spaces while scanning for the optional argument, so
@@ -41,7 +43,7 @@ def section(text, heading):
     """Return the body of a markdown section up to the next heading."""
     pattern = re.compile(
         rf"^#+ {re.escape(heading)}[^\n]*\n(.*?)(?=^#+ |\Z)",
-        re.MULTILINE | re.DOTALL,
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     match = pattern.search(text)
     return match.group(1) if match else None
@@ -65,7 +67,8 @@ class TestBulletBracketTrap(unittest.TestCase):
         )
 
     def test_example_cv_has_no_bracket_labelled_bullets(self):
-        self.assert_no_unbraced_bracket_items(EXAMPLE_CV)
+        for path in EXAMPLE_CVS:
+            self.assert_no_unbraced_bracket_items(path)
 
     def test_example_cover_letter_has_no_bracket_labelled_bullets(self):
         self.assert_no_unbraced_bracket_items(EXAMPLE_COVER)

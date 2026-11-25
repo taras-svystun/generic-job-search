@@ -8,9 +8,10 @@ the canonical underscore spellings and the legacy space spellings on read.
 These tests pin the two concrete bugs that opened #298:
 
 1. `offer declined` (space form, written by the old /outcome Step 4) landed
-   in no /html-report bucket, silently shrinking the rejection-rate denominator.
-2. `interview_only` was listed as a tracker bucket value in /html-report, but
-   it belongs to the archive outcome.md Status: enum, never the CSV column.
+   in no report bucket. tools/stats.py now reads both spellings; tests/test_stats.py
+   pins that, and its catch-all (point 5).
+2. `interview_only` was a report bucket value; outcome.md no longer has a status,
+   so the tracker column is the only one.
 
 They also pin the review findings on the fix itself:
 
@@ -20,9 +21,8 @@ They also pin the review findings on the fix itself:
    in /apply's append-vs-update decision.
 4. The vocabulary block must not split Step 1's numbered list: section-scoped
    reads of Step 1 must still see items 2-4.
-5. /html-report's bucket map needs a catch-all so no tracker value drops out of
-   the stats silently, and /notion-sync must normalise space forms before
-   writing Status (Notion auto-creates a select option per unique string).
+5. The stats page needs a catch-all so no tracker value drops out silently
+   (tests/test_stats.py, unknown status shown as "No reply yet").
 6. /apply and /interview make status decisions and must anchor them to the
    block, not restate an ad-hoc set.
 
@@ -34,14 +34,11 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-COMMANDS = REPO / ".claude" / "commands"
+COMMANDS = REPO / ".agents" / "skills"
 
-OUTCOME = COMMANDS / "outcome.md"
-GMAIL_SYNC = COMMANDS / "gmail-sync.md"
-HTML_REPORT = COMMANDS / "html-report.md"
-NOTION_SYNC = COMMANDS / "notion-sync.md"
-APPLY = COMMANDS / "apply.md"
-INTERVIEW = COMMANDS / "interview.md"
+OUTCOME = COMMANDS / "outcome" / "SKILL.md"
+APPLY = COMMANDS / "apply" / "SKILL.md"
+INTERVIEW = COMMANDS / "interview" / "SKILL.md"
 
 VOCAB_ANCHOR = "## Tracker status vocabulary"
 
@@ -158,130 +155,6 @@ class VocabularyBlockExists(unittest.TestCase):
         )
 
 
-class ReadersBucketMap(unittest.TestCase):
-    """Each reader that classifies tracker values must handle both spellings
-    and must not include archive-only values in tracker buckets."""
-
-    def test_html_report_bucket_includes_space_and_underscore_forms(self):
-        """Read-tolerance: both spellings must reach the Rejected/Closed bucket."""
-        # Scope to the bucket-map section, not the whole file, so the assertion
-        # proves the mapping exists where stats are computed - a stray mention
-        # anywhere else in the file would otherwise satisfy it.
-        step1 = section(HTML_REPORT, "## Step 1: Collect Data")
-        self.assertIn(
-            "no response",
-            step1,
-            "/html-report must accept the legacy 'no response' (space) form so that "
-            "existing trackers are not silently excluded from stats",
-        )
-        self.assertIn(
-            "no_response",
-            step1,
-            "/html-report must accept the canonical 'no_response' (underscore) form",
-        )
-        self.assertIn(
-            "offer declined",
-            step1,
-            "/html-report must accept the legacy 'offer declined' (space) form",
-        )
-        self.assertIn(
-            "offer_declined",
-            step1,
-            "/html-report must accept the canonical 'offer_declined' (underscore) form",
-        )
-
-    def test_html_report_bucket_map_has_catch_all(self):
-        """No tracker value may drop out of the stats silently: unrecognised values
-        fall to Rejected/Closed and are named once in the status breakdown."""
-        step1 = section(HTML_REPORT, "## Step 1: Collect Data")
-        self.assertIn(
-            "anything else",
-            step1,
-            "The bucket map must have a catch-all line for unrecognised tracker values",
-        )
-        self.assertIn(
-            "unrecognised",
-            step1,
-            "The catch-all must name the unrecognised value once so the drop is "
-            "visible instead of silent",
-        )
-
-    def test_html_report_bucket_does_not_contain_interview_only(self):
-        """`interview_only` is the archive outcome.md Status: enum value,
-        never a tracker CSV status. Listing it in the tracker bucket map
-        confuses the two enums and would classify archive-only values
-        that should not appear in the CSV."""
-        # We only care about the bucket map section, not the whole file,
-        # to avoid false positives from comments or this test file itself.
-        step1 = section(HTML_REPORT, "## Step 1: Collect Data")
-        self.assertNotIn(
-            "interview_only",
-            step1,
-            "`interview_only` must not appear in /html-report's tracker bucket map — "
-            "it is part of the archive `outcome.md` Status: enum, not a tracker CSV value",
-        )
-
-    def test_gmail_sync_references_vocabulary_block(self):
-        """gmail-sync must defer to /outcome's vocabulary block for the
-        open-application set, not hardcode the final-status set with
-        space spellings that diverge from the writer."""
-        step2_text = section(GMAIL_SYNC, "## Step 2: Load State")
-        self.assertIn(
-            "Tracker status vocabulary",
-            step2_text,
-            "/gmail-sync Step 2 must reference the /outcome vocabulary block "
-            "instead of restating the final-status set with its own spellings",
-        )
-        self.assertNotIn(
-            "no response",
-            step2_text,
-            "/gmail-sync Step 2 must not restate the space spellings locally - "
-            "the vocabulary block is the single source for what counts as final, "
-            "and a second local list is what drifted in #298",
-        )
-
-    def test_notion_sync_normalises_status_before_write(self):
-        """Step 4 must map legacy space spellings to canonical before setting
-        Status. Notion auto-creates a select option per unique string, so pushing
-        a space form would give an existing database two options for one status
-        and split closed applications across two filter buckets."""
-        step4_text = section(NOTION_SYNC, "## Step 4: Upsert Database Rows")
-        self.assertIn(
-            "never push a space form",
-            step4_text,
-            "/notion-sync Step 4 must never write a space-form status to Notion",
-        )
-        self.assertIn(
-            "Tracker status vocabulary",
-            step4_text,
-            "/notion-sync Step 4 must map space forms per the /outcome vocabulary block",
-        )
-
-    def test_notion_sync_uses_underscore_status_spellings(self):
-        """Notion Status select options must match canonical tracker spellings
-        so that upserted values are consistent with what /outcome writes."""
-        step3_text = section(NOTION_SYNC, "## Step 3: Load Sync State and Locate the Database")
-        self.assertIn(
-            "no_response",
-            step3_text,
-            "/notion-sync Step 3 must list `no_response` (underscore) as a Status "
-            "option so it matches what /outcome writes to the tracker",
-        )
-        self.assertIn(
-            "offer_declined",
-            step3_text,
-            "/notion-sync Step 3 must list `offer_declined` (underscore) as a Status "
-            "option so it matches what /outcome writes to the tracker",
-        )
-        self.assertNotIn(
-            "no response",
-            step3_text,
-            "/notion-sync Step 3 must not list 'no response' (space) as the primary "
-            "option — Notion creates a distinct select value for each unique string, "
-            "so mixing spellings creates duplicate options in the database",
-        )
-
-
 class ReaderCases(unittest.TestCase):
     """Spot-checks across readers that prove the vocabulary block is reachable
     from each command that makes decisions based on tracker status.
@@ -303,21 +176,6 @@ class ReaderCases(unittest.TestCase):
             VOCAB_ANCHOR,
             "Final",
             "The vocabulary block must define the final-status set explicitly",
-        ),
-        # /html-report Step 2 excludes drafted from stats
-        (
-            HTML_REPORT,
-            "## Step 2: Compute Summary Stats",
-            "excluded from every statistic below",
-            "drafted rows must be excluded from every statistic, not counted as sent",
-        ),
-        # /gmail-sync staleness check skips drafted
-        (
-            GMAIL_SYNC,
-            "## Step 9: Staleness Check",
-            "Skip `drafted` rows here",
-            "the staleness check must skip drafted rows — nothing was sent, "
-            "so nobody is late replying",
         ),
         # /apply's append-vs-update decision anchors to the vocabulary
         (
